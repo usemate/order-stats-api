@@ -78,24 +78,6 @@ const getPrice = async ({
   } catch (e) {
     console.error(e)
   }
-
-  // console.error(`Failed getting ${token} at block number ${blockNumber}`)
-
-  // // Fallback to current price
-  // try {
-  //   const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
-  //     block: Number(blockNumber),
-  //     token,
-  //   })
-
-  //   if (result.token) {
-  //     return result.token.derivedUSD
-  //   }
-  // } catch (e) {
-  //   console.error(e)
-  // }
-
-  // console.error(`Failed getting ${token} at current block number`)
 }
 
 export const getAmountForToken = async ({
@@ -106,7 +88,10 @@ export const getAmountForToken = async ({
   token: string
   blockNumber: string
   amount: string
-}): Promise<string> => {
+}): Promise<{
+  amount: string
+  price: string
+}> => {
   try {
     const price = await getPrice({ token, blockNumber })
 
@@ -124,7 +109,10 @@ export const getAmountForToken = async ({
       ethers.utils.formatUnits(amount, decimals)
     )
 
-    return value.toString()
+    return {
+      amount: value.toString(),
+      price: new Decimal(price).toString(),
+    }
   } catch (e) {
     console.error({ blockNumber, amount, token })
     console.error('error in getAmountForToken')

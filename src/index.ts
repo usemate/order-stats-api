@@ -19,8 +19,7 @@ const start = async () => {
 
   setupEvents()
 
-  const orders = await (db?.data?.orders || [])
-  if (orders.length === 0) {
+  if ((await (db?.data?.orders || []).length) === 0) {
     console.log('No orders found, starting to batch')
     batchUpdates()
   }
@@ -46,30 +45,29 @@ const start = async () => {
       )
       const executedOrders = orders
         .filter((order) => order.status === OrderStatus.CLOSED)
-        .filter((order) => order.amountReceivedUsdValue)
-        .filter((order) => order.amountOutMinUsdValue)
-        .filter((order) => order.amountInUsdValue)
+        .filter((order) => order.createdBlock?.amounts.amountOutMin)
+        .filter((order) => order.executedBlock?.amounts.recieved)
 
       const executedOrdersLocked = executedOrders
-        .map((order) => order.amountInUsdValue)
+        .map((order) => order.createdBlock.amounts.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const amountOutMinAmount = executedOrders
-        .map((order) => order.amountOutMinUsdValue)
+        .map((order) => order.createdBlock.amounts.amountOutMin)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const recievedAmount = executedOrders
-        .map((order) => order.amountReceivedUsdValue)
+        .map((order) => order.executedBlock.amounts.recieved)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const totalLocked = orders
-        .filter((order) => order.amountInUsdValue)
-        .map((order) => order.amountInUsdValue)
+        .filter((order) => order.createdBlock?.amounts?.amountIn)
+        .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const currentlyLocked = openOrders
-        .filter((order) => order.amountInUsdValue)
-        .map((order) => order.amountInUsdValue)
+        .filter((order) => order.createdBlock?.amounts?.amountIn)
+        .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const canceledOrders = orders.filter(
@@ -116,7 +114,7 @@ const start = async () => {
     }
   })
 
-  app.get('/orders/:ordersId', async (req, res) => {
+  app.get('/orders/:ordersId', async (req: Request, res: Response) => {
     if (!req.params.ordersId) {
       return res.status(500).send('Missing order id')
     }
@@ -136,6 +134,55 @@ const start = async () => {
     }
 
     return res.status(500).send(`Can't find order ${req.params.ordersId}`)
+  })
+
+  app.get('/tokens', (req: Request, res: Response) => {
+    try {
+      const tokens = {}
+
+      for (let order of db.data.orders) {
+        const initToken = {
+          count: {
+            in: 0,
+            out: 0,
+          },
+        }
+
+        const tokenIn = order.tokenIn.toLowerCase()
+        const tokenOut = order.tokenOut.toLowerCase()
+
+        if (!tokens[tokenIn]) {
+          tokens[tokenIn] = { ...initToken }
+        }
+
+        if (!tokens[tokenOut]) {
+          tokens[tokenOut] = { ...initToken }
+        }
+
+        tokens[tokenIn].count.in++
+        tokens[tokenOut].count.out++
+
+        // if (order.createdBlock?.amounts.amountIn) {
+        //   tokens[tokenIn].amountIn = tokens[tokenIn].amountIn
+        //     ? new Decimal(0).add(order.createdBlock?.amounts.amountIn)
+        //     : tokens[tokenIn].amountIn.add(order.createdBlock?.amounts.amountIn)
+        // }
+
+        // if (order.createdBlock?.amounts.amountOutMin) {
+        //   tokens[tokenOut].amountOut = tokens[tokenOut].amountOut
+        //     ? new Decimal(0).add(order.createdBlock?.amounts.amountOutMin)
+        //     : tokens[tokenOut].amountOut.add(
+        //         order.createdBlock?.amounts.amountOutMin
+        //       )
+        // }
+      }
+
+      res.status(200).json({
+        tokens,
+      })
+    } catch (e) {
+      return res.status(500).send(e.message)
+    }
   })
 
   // start the express server

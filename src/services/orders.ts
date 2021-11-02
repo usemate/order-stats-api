@@ -1,6 +1,6 @@
 import moment from 'moment'
 import { gql, request } from 'graphql-request'
-import { Order, GraphOrderEntity, OrderWithDate } from '../types'
+import { Order, GraphOrderEntity, BlockData } from '../types'
 import db from './db'
 import { getAmountForToken } from '../api'
 import { OrderStatus } from '../config'
@@ -42,6 +42,7 @@ export const setupEvents = () => {
         amountOutMin: amountOutMin.toString(),
         createdBlockNumber: event.blockNumber,
       }
+
       const populatedOrder = await getOrderWithData(newOrder)
       db.data.orders.push(populatedOrder)
 
@@ -68,18 +69,30 @@ export const setupEvents = () => {
 
       if (order) {
         const executedBlockNumber = event.blockNumber
+
         const amountReceivedUsdValue = await getAmountForToken({
           token: order.tokenOut,
           blockNumber: executedBlockNumber,
           amount: amountOut.toString(),
         })
 
-        updateOrder(orderId, {
+        const updatedOrder = {
+          ...order,
           status: OrderStatus.CLOSED,
           recievedAmount: amountOut.toString(),
-          amountReceivedUsdValue: amountReceivedUsdValue,
           executedBlockNumber,
           executedTimestamp: timestamp,
+        }
+
+        const executedBlock = await getAmountBlock(
+          updatedOrder,
+          order.executedBlockNumber,
+          undefined
+        )
+
+        updateOrder(orderId, {
+          ...updateOrder,
+          executedBlock,
         })
       } else {
         batchUpdates()
@@ -107,6 +120,66 @@ const ordersQuery = gql`
   }
 `
 
+export const getAmountBlock = async (
+  order: GraphOrderEntity,
+  blockNumber: string | void,
+  currentBlock: BlockData | undefined,
+  ignoreField?: string
+): Promise<BlockData | null> => {
+  if (!blockNumber) {
+    return null
+  }
+
+  let amountIn = currentBlock?.amounts.amountIn
+  let amountOutMin = currentBlock?.amounts.amountOutMin
+  let recieved = currentBlock?.amounts.recieved
+  let tokenIn = currentBlock?.prices.tokenIn
+  let tokenOut = currentBlock?.prices.tokenOut
+
+  if (!amountIn) {
+    const result = await getAmountForToken({
+      token: order.tokenIn,
+      blockNumber: blockNumber,
+      amount: order.amountIn,
+    })
+    if (ignoreField !== 'amountIn') {
+      amountIn = result.amount
+    }
+    tokenIn = result.price
+  }
+
+  if (!amountOutMin && ignoreField !== 'amountOutMin') {
+    const result = await getAmountForToken({
+      token: order.tokenOut,
+      blockNumber: blockNumber,
+      amount: order.amountOutMin,
+    })
+    amountOutMin = result.amount
+    tokenOut = result.price
+  }
+
+  if (order.recievedAmount && !recieved && ignoreField !== 'recieved') {
+    const result = await getAmountForToken({
+      token: order.tokenOut,
+      blockNumber: blockNumber,
+      amount: order.recievedAmount,
+    })
+    recieved = result.amount
+  }
+
+  return {
+    amounts: {
+      amountIn,
+      amountOutMin,
+      recieved,
+    },
+    prices: {
+      tokenIn,
+      tokenOut,
+    },
+  }
+}
+
 const getOrderWithData = async (order: GraphOrderEntity) => {
   try {
     const currentOrders = db.data.orders || []
@@ -114,47 +187,35 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
       (currentOrder) => currentOrder.id === order.id
     )
 
-    let amountInUsdValue = selectedOrder?.amountInUsdValue
-    let amountReceivedUsdValue = selectedOrder?.amountReceivedUsdValue
-    let amountOutMinUsdValue = selectedOrder?.amountOutMinUsdValue
+    const [createdBlock, executedBlock] = await Promise.all([
+      getAmountBlock(
+        order,
+        order.createdBlockNumber,
+        selectedOrder?.createdBlock,
+        'recieved'
+      ),
+      getAmountBlock(
+        order,
+        order.executedBlockNumber,
+        selectedOrder?.executedBlock,
+        'amountIn'
+      ),
+    ])
 
-    if (!amountInUsdValue) {
-      amountInUsdValue = await getAmountForToken({
-        token: order.tokenIn,
-        blockNumber: order.createdBlockNumber,
-        amount: order.amountIn,
-      })
-    }
-
-    if (!amountOutMinUsdValue) {
-      amountOutMinUsdValue = await getAmountForToken({
-        token: order.tokenOut,
-        blockNumber: order.createdBlockNumber,
-        amount: order.amountOutMin,
-      })
-    }
-
-    if (order.executedBlockNumber && !amountReceivedUsdValue) {
-      amountReceivedUsdValue = await getAmountForToken({
-        token: order.tokenOut,
-        blockNumber: order.executedBlockNumber,
-        amount: order.recievedAmount,
-      })
+    const updated = {
+      createdBlock,
+      executedBlock,
     }
 
     return selectedOrder
       ? {
           ...selectedOrder,
           ...order,
-          amountInUsdValue,
-          amountReceivedUsdValue,
-          amountOutMinUsdValue,
+          ...updated,
         }
       : {
           ...order,
-          amountInUsdValue,
-          amountReceivedUsdValue,
-          amountOutMinUsdValue,
+          ...updated,
         }
   } catch (e) {
     console.error(e)
@@ -216,7 +277,7 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
 
       skip += first
       orders = [...orders, ...result.orders]
-
+      done = true
       if (result.orders.length === 0) {
         done = true
       }
