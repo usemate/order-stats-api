@@ -1,5 +1,5 @@
 # STAGE 1
-FROM node:16-alpine as builder
+FROM node:14.17.1 as builder
 RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
 WORKDIR /home/node/app
 COPY package*.json ./
@@ -11,18 +11,16 @@ COPY --chown=node:node . .
 RUN npm run build
 
 # STAGE 2
-FROM node:16-alpine
+FROM node:14.17.1
 RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
 WORKDIR /home/node/app
 COPY package*.json ./
 USER node
 # RUN npm install --save-dev sequelize-cli
-RUN npm install --production
+RUN npm install
 COPY --from=builder /home/node/app/dist ./dist
 
 COPY --chown=node:node .env .
 
-
-EXPOSE 5000
 
 CMD [ "node", "dist/index.js" ]
