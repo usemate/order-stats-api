@@ -277,7 +277,7 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
 
       skip += first
       orders = [...orders, ...result.orders]
-      done = true
+
       if (result.orders.length === 0) {
         done = true
       }

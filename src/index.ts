@@ -21,7 +21,7 @@ const start = async () => {
 
   if ((await (db?.data?.orders || []).length) === 0) {
     console.log('No orders found, starting to batch')
-    batchUpdates()
+    batchUpdates().then(() => console.log('Batching done'))
   }
 
   app.get('/orders', async (req: Request, res: Response) => {
