@@ -39,9 +39,28 @@ type Order = {
   status: OrderStatus
   createdBlockNumber: string
   executedBlockNumber?: string
-  amountOutMinUsdValue?: string
-  amountInUsdValue?: string
-  amountReceivedUsdValue?: string
+  createdBlock?: {
+    prices?: {
+      tokenIn?: string
+      tokenOut?: string
+    }
+    amounts?: {
+      amountOutMin?: string
+      amountIn?: string
+      recieved?: string
+    }
+  }
+  executedBlock?: {
+    prices?: {
+      tokenIn?: string
+      tokenOut?: string
+    }
+    amounts?: {
+      amountOutMin?: string
+      amountIn?: string
+      recieved?: string
+    }
+  }
 }
 
 type Response = {
@@ -65,9 +84,28 @@ type Order = {
   status: OrderStatus
   createdBlockNumber: string
   executedBlockNumber?: string
-  amountOutMinUsdValue?: string
-  amountInUsdValue?: string
-  amountReceivedUsdValue?: string
+  createdBlock?: {
+    prices?: {
+      tokenIn?: string
+      tokenOut?: string
+    }
+    amounts?: {
+      amountOutMin?: string
+      amountIn?: string
+      recieved?: string
+    }
+  }
+  executedBlock?: {
+    prices?: {
+      tokenIn?: string
+      tokenOut?: string
+    }
+    amounts?: {
+      amountOutMin?: string
+      amountIn?: string
+      recieved?: string
+    }
+  }
 }
 
 type Response = Order
@@ -76,6 +114,11 @@ type Response = Order
 ### `/tokens`
 
 ```typescript
+type TokenStats = {
+  in: number
+  out: number
+}
+
 type Response = {
   tokens: Record<string, TokenStats>
 }
