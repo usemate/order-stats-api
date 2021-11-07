@@ -70,12 +70,6 @@ export const setupEvents = () => {
       if (order) {
         const executedBlockNumber = event.blockNumber
 
-        const amountReceivedUsdValue = await getAmountForToken({
-          token: order.tokenOut,
-          blockNumber: executedBlockNumber,
-          amount: amountOut.toString(),
-        })
-
         const updatedOrder = {
           ...order,
           status: OrderStatus.CLOSED,
@@ -91,7 +85,7 @@ export const setupEvents = () => {
         )
 
         updateOrder(orderId, {
-          ...updateOrder,
+          ...updatedOrder,
           executedBlock,
         })
       } else {
