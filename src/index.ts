@@ -5,6 +5,7 @@ import express, { Request, Response } from 'express'
 import { OrderStatus } from './config'
 import db, { initDb } from './services/db'
 import { batchUpdates, setupEvents } from './services/orders'
+import { CronJob } from 'cron'
 
 config()
 
@@ -30,22 +31,37 @@ const start = async () => {
 
   app.get('/batch', async (req: Request, res: Response) => {
     try {
-      await batchUpdates()
-      res.status(200).send('success')
+      batchUpdates()
+      res.status(200).send('batch started')
     } catch (e) {
       res.status(500).send(e.message)
     }
   })
 
+  const job = new CronJob(
+    '55 * * * *',
+    async () => {
+      console.log('Cron job triggered')
+      batchUpdates()
+    },
+    null,
+    true,
+    'Europe/Berlin'
+  )
+
+  job.start()
+
   app.get('/stats', async (req: Request, res: Response) => {
     try {
       const orders = db.data?.orders || []
+
       const openOrders = orders.filter(
         (order) => order.status === OrderStatus.OPEN
       )
       const executedOrders = orders
         .filter((order) => order.status === OrderStatus.CLOSED)
         .filter((order) => order.createdBlock?.amounts.amountOutMin)
+        .filter((order) => order.createdBlock?.amounts.amountIn)
         .filter((order) => order.executedBlock?.amounts.recieved)
 
       const executedOrdersLocked = executedOrders

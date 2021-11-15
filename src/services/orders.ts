@@ -3,14 +3,14 @@ import { gql, request } from 'graphql-request'
 import { Order, GraphOrderEntity, BlockData } from '../types'
 import db from './db'
 import { getAmountForToken } from '../api'
-import { OrderStatus } from '../config'
+import { MATE_CORE_ADDRESS, OrderStatus } from '../config'
 import { getStandardProvider } from '../providers'
 import { ethers } from 'ethers'
 import mateCoreAbi from '../abi/MateCore.json'
 
 export const setupEvents = () => {
   const mateCore = new ethers.Contract(
-    process.env.MATE_CORE,
+    MATE_CORE_ADDRESS,
     mateCoreAbi.abi,
     getStandardProvider()
   )
@@ -61,7 +61,7 @@ export const setupEvents = () => {
   mateCore.on(
     'OrderExecuted',
     async (orderId, creator, sender, amountOut, timestamp, event) => {
-      console.log(`Order placed - ${orderId}`)
+      console.log(`Order executed - ${orderId}`)
 
       const order = db.data.orders.find(
         (currentOrder) => currentOrder.id === order.id

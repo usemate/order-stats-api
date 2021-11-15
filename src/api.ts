@@ -76,7 +76,7 @@ const getPrice = async ({
       return result.token.derivedUSD
     }
   } catch (e) {
-    console.error(e)
+    console.error('getPrice error', e)
   }
 }
 
@@ -96,7 +96,7 @@ export const getAmountForToken = async ({
     const price = await getPrice({ token, blockNumber })
 
     if (!price) {
-      return Promise.reject()
+      return Promise.reject('Could not get price.')
     }
 
     const erc20Token = new ethers.Contract(
