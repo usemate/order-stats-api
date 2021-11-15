@@ -96,7 +96,7 @@ export const setupEvents = () => {
 }
 
 export const orderQueue = new Queue({
-  concurrent: 1,
+  concurrent: 2,
   interval: 2000,
 })
 
