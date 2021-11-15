@@ -19,7 +19,8 @@
     "graphql": "^15.7.0",
     "graphql-request": "^3.6.1",
     "lowdb": "github:dankreiger/lowdb#chore/esm-cjs-hybrid-WITH-LIB",
-    "moment": "^2.29.1"
+    "moment": "^2.29.1",
+    "queue-promise": "^2.2.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.13",

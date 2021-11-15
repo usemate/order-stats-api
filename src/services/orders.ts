@@ -1,3 +1,4 @@
+import Queue from 'queue-promise'
 import moment from 'moment'
 import { gql, request } from 'graphql-request'
 import { Order, GraphOrderEntity, BlockData } from '../types'
@@ -43,8 +44,7 @@ export const setupEvents = () => {
         createdBlockNumber: event.blockNumber,
       }
 
-      const populatedOrder = await getOrderWithData(newOrder)
-      db.data.orders.push(populatedOrder)
+      await getOrderWithData(newOrder)
 
       await db.write()
     }
@@ -94,6 +94,11 @@ export const setupEvents = () => {
     }
   )
 }
+
+export const orderQueue = new Queue({
+  concurrent: 1,
+  interval: 2000,
+})
 
 const ordersQuery = gql`
   query getOrders($skip: Int, $first: Int) {
@@ -201,7 +206,7 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
       executedBlock,
     }
 
-    return selectedOrder
+    const updatedOrder = selectedOrder
       ? {
           ...selectedOrder,
           ...order,
@@ -211,10 +216,15 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
           ...order,
           ...updated,
         }
-  } catch (e) {
-    console.error(e)
 
-    return order
+    if (selectedOrder) {
+      await updateOrder(order.id, updatedOrder)
+    } else {
+      db.data.orders.push(updatedOrder)
+      await db.write()
+    }
+  } catch (e) {
+    console.error(`getOrderWithData failed with order ${order.id}`, e)
   }
 }
 
@@ -237,12 +247,9 @@ export const updateOrder = async (orderId: string, data: Partial<Order>) => {
 export const batchUpdates = async () => {
   const allOrders = await getAllOrders()
 
-  const promises = allOrders.map(async (order) => await getOrderWithData(order))
-
-  const orders = await Promise.all(promises)
-  db.data.orders = orders
-
-  await db.write()
+  allOrders.map((order) => {
+    orderQueue.enqueue(() => getOrderWithData(order))
+  })
 }
 
 export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {

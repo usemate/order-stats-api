@@ -4,7 +4,7 @@ import { ethers } from 'ethers'
 import express, { Request, Response } from 'express'
 import { OrderStatus } from './config'
 import db, { initDb } from './services/db'
-import { batchUpdates, setupEvents } from './services/orders'
+import { batchUpdates, orderQueue, setupEvents } from './services/orders'
 import { CronJob } from 'cron'
 
 config()
@@ -32,7 +32,21 @@ const start = async () => {
   app.get('/batch', async (req: Request, res: Response) => {
     try {
       batchUpdates()
-      res.status(200).send('batch started')
+      res.status(200).send('Batch started')
+    } catch (e) {
+      res.status(500).send(e.message)
+    }
+  })
+
+  app.get('/queue', async (req: Request, res: Response) => {
+    try {
+      res.status(200).json({
+        state: orderQueue.state,
+        size: orderQueue.size,
+
+        isEmpty: orderQueue.isEmpty,
+        shouldRun: orderQueue.shouldRun,
+      })
     } catch (e) {
       res.status(500).send(e.message)
     }

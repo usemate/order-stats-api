@@ -1,0 +1,7 @@
+version: '3.9'
+services:
+  orders:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '2000:5000'
