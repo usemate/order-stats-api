@@ -96,8 +96,8 @@ export const setupEvents = () => {
 }
 
 export const orderQueue = new Queue({
-  concurrent: 2,
-  interval: 2000,
+  concurrent: 1,
+  interval: 5000,
 })
 
 const ordersQuery = gql`

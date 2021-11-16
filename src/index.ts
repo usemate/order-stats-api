@@ -72,11 +72,17 @@ const start = async () => {
       const openOrders = orders.filter(
         (order) => order.status === OrderStatus.OPEN
       )
+
+      const valueIsCorrect = (value: any): boolean => value && value != '0'
       const executedOrders = orders
         .filter((order) => order.status === OrderStatus.CLOSED)
-        .filter((order) => order.createdBlock?.amounts.amountOutMin)
-        .filter((order) => order.createdBlock?.amounts.amountIn)
-        .filter((order) => order.executedBlock?.amounts.recieved)
+        .filter((order) =>
+          valueIsCorrect(order.createdBlock?.amounts.amountOutMin)
+        )
+        .filter((order) => valueIsCorrect(order.createdBlock?.amounts.amountIn))
+        .filter((order) =>
+          valueIsCorrect(order.executedBlock?.amounts.recieved)
+        )
 
       const executedOrdersLocked = executedOrders
         .map((order) => order.createdBlock.amounts.amountIn)
@@ -96,7 +102,9 @@ const start = async () => {
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const currentlyLocked = openOrders
-        .filter((order) => order.createdBlock?.amounts?.amountIn)
+        .filter((order) =>
+          valueIsCorrect(order.createdBlock?.amounts?.amountIn)
+        )
         .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
