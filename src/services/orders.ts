@@ -96,8 +96,8 @@ export const setupEvents = () => {
 }
 
 export const orderQueue = new Queue({
-  concurrent: 1,
-  interval: 5000,
+  concurrent: 2,
+  interval: 1500,
 })
 
 const ordersQuery = gql`
@@ -129,9 +129,21 @@ export const getAmountBlock = async (
     return null
   }
 
-  let amountIn = currentBlock?.amounts.amountIn
-  let amountOutMin = currentBlock?.amounts.amountOutMin
-  let recieved = currentBlock?.amounts.recieved
+  const getValue = (val?: string) => {
+    if (!val) {
+      return
+    }
+
+    if (val == '0') {
+      return
+    }
+
+    return val
+  }
+
+  let amountIn = getValue(currentBlock?.amounts.amountIn)
+  let amountOutMin = getValue(currentBlock?.amounts.amountOutMin)
+  let recieved = getValue(currentBlock?.amounts.recieved)
   let tokenIn = currentBlock?.prices.tokenIn
   let tokenOut = currentBlock?.prices.tokenOut
 
@@ -180,9 +192,10 @@ export const getAmountBlock = async (
 }
 
 const getOrderWithData = async (order: GraphOrderEntity) => {
+  let selectedOrder
   try {
-    const currentOrders = db.data.orders || []
-    const selectedOrder = currentOrders.find(
+    let currentOrders = db.data.orders || []
+    selectedOrder = currentOrders.find(
       (currentOrder) => currentOrder.id === order.id
     )
 
@@ -225,6 +238,11 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
     }
   } catch (e) {
     console.error(`getOrderWithData failed with order ${order.id}`, e)
+
+    if (!selectedOrder) {
+      db.data.orders.push(order)
+      await db.write()
+    }
   }
 }
 
