@@ -134,13 +134,15 @@ export const getAmountForToken = async ({
       const totalSupply = await erc20Token.totalSupply()
 
       // Set the limit to this to ignore shitcoins
-      // 70 000 000 000 000
-      const maxSupply = new Decimal('70000000000000')
+      // 100 000 000 000 000 000
+      const maxSupply = new Decimal('100000000000000000')
       const currentSupply = new Decimal(
         ethers.utils.formatUnits(totalSupply, decimals)
       )
       if (currentSupply.gt(maxSupply)) {
-        ignoredTokens.push(token)
+        if (!ignoredTokens.includes(token)) {
+          ignoredTokens.push(token)
+        }
 
         return Promise.reject(
           `Token is unstable is blacklisted. Our limit of ${maxSupply.toString()} was exceeded with ${currentSupply.toString()}. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
