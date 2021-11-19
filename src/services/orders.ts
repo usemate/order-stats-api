@@ -299,16 +299,9 @@ export const batchUpdates = async () => {
   console.log('batch started')
   const allOrders = await getAllOrders()
 
-  allOrders
-    .filter(
-      (order, i) =>
-        order.id ==
-          '0xb18f57652777aed77a084bbe9cdea8b828e78747205c3ff9a7aa643aa71b6fad' ||
-        i < 100
-    )
-    .map((order) => {
-      orderQueue.enqueue(() => getOrderWithData(order))
-    })
+  allOrders.map((order) => {
+    orderQueue.enqueue(() => getOrderWithData(order))
+  })
 }
 
 export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
