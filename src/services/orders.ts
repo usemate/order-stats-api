@@ -8,6 +8,8 @@ import { MATE_CORE_ADDRESS, OrderStatus } from '../config'
 import { getStandardProvider } from '../providers'
 import { ethers } from 'ethers'
 import mateCoreAbi from '../abi/MateCore.json'
+import { amountIsCorrect, getSavedFromOrder } from '../utils'
+import Decimal from 'decimal.js'
 
 export const setupEvents = () => {
   const mateCore = new ethers.Contract(
@@ -42,6 +44,7 @@ export const setupEvents = () => {
         amountIn: amountIn.toString(),
         amountOutMin: amountOutMin.toString(),
         createdBlockNumber: event.blockNumber,
+        createdTransactionHash: event.transactionHash,
       }
 
       await getOrderWithData(newOrder)
@@ -97,7 +100,7 @@ export const setupEvents = () => {
 
 export const orderQueue = new Queue({
   concurrent: 2,
-  interval: 1500,
+  interval: 2000,
 })
 
 const ordersQuery = gql`
@@ -115,6 +118,8 @@ const ordersQuery = gql`
       recievedAmount
       createdBlockNumber
       executedBlockNumber
+      executedTransactionHash
+      createdTransactionHash
     }
   }
 `
@@ -219,7 +224,7 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
       executedBlock,
     }
 
-    const updatedOrder = selectedOrder
+    let updatedOrder: Order = selectedOrder
       ? {
           ...selectedOrder,
           ...order,
@@ -229,6 +234,21 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
           ...order,
           ...updated,
         }
+
+    const gotGains = updatedOrder.savedPercentage && updatedOrder.savedUsd
+    if (!gotGains && updatedOrder.executedBlock && updatedOrder.createdBlock) {
+      const result = getSavedFromOrder(
+        updatedOrder.createdBlock,
+        updatedOrder.executedBlock
+      )
+      if (result) {
+        updatedOrder = {
+          ...updatedOrder,
+          savedPercentage: result.percentage,
+          savedUsd: result.amount,
+        }
+      }
+    }
 
     if (selectedOrder) {
       await updateOrder(order.id, updatedOrder)
@@ -263,6 +283,7 @@ export const updateOrder = async (orderId: string, data: Partial<Order>) => {
 }
 
 export const batchUpdates = async () => {
+  console.log('batch started')
   const allOrders = await getAllOrders()
 
   allOrders.map((order) => {
@@ -307,4 +328,75 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
   }
 
   return orders
+}
+
+export const getExecutedOrders = async (): Promise<Order[]> => {
+  const orders = (await db.data?.orders) || []
+
+  return orders
+    .filter((order) => order.status === OrderStatus.CLOSED)
+    .filter((order) =>
+      amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
+    )
+    .filter((order) => amountIsCorrect(order.createdBlock?.amounts.amountIn))
+    .filter((order) => amountIsCorrect(order.executedBlock?.amounts.recieved))
+}
+
+export const getLargestOrder = async (): Promise<Order[]> => {
+  const orders = await getExecutedOrders()
+  return orders
+    .map((order) => ({
+      ...order,
+      recievedAmount: new Decimal(order.executedBlock.amounts.recieved),
+    }))
+    .sort((a, b) => b.recievedAmount.comparedTo(a.recievedAmount))
+    .slice(0, 3)
+    .map((order) => ({
+      ...order,
+      recievedAmount: order.recievedAmount.toString(),
+    }))
+}
+
+export const getAverageOrderSize = async (): Promise<number> => {
+  const orders = await getExecutedOrders()
+
+  return Math.round(
+    orders
+      .map((order) =>
+        new Decimal(order.executedBlock.amounts.recieved).toNumber()
+      )
+      .reduce((a, b) => a + b) / orders.length
+  )
+}
+
+export const getBiggestSavesPercentage = async (): Promise<Order[]> => {
+  const orders = await getExecutedOrders()
+  return orders
+    .filter((order) => order.savedPercentage)
+    .map((order) => ({
+      ...order,
+      savedPercentage: new Decimal(order.savedPercentage),
+    }))
+    .sort((a, b) => b.savedPercentage.comparedTo(a.savedPercentage))
+    .slice(0, 3)
+    .map((order) => ({
+      ...order,
+      savedPercentage: order.savedPercentage.toString(),
+    }))
+}
+
+export const getBiggestSaveUsd = async (): Promise<Order[]> => {
+  const orders = await getExecutedOrders()
+  return orders
+    .filter((order) => order.savedUsd)
+    .map((order) => ({
+      ...order,
+      savedUsd: new Decimal(order.savedUsd),
+    }))
+    .sort((a, b) => b.savedUsd.comparedTo(a.savedUsd))
+    .slice(0, 3)
+    .map((order) => ({
+      ...order,
+      savedUsd: order.savedUsd.toString(),
+    }))
 }

@@ -32,13 +32,17 @@ export type GraphOrderEntity = {
   status: OrderStatus
   createdBlockNumber: string
   executedBlockNumber?: string
-
   createdBlock?: BlockData
   executedBlock?: BlockData
+  executedTransactionHash?: string
+  createdTransactionHash: string
 }
 
 export type Order = GraphOrderEntity & {
   amountOutMinUsdValue?: Price
   amountInUsdValue?: Price
   amountReceivedUsdValue?: Price
+
+  savedPercentage?: string
+  savedUsd?: string
 }

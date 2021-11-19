@@ -4,8 +4,19 @@ import { ethers } from 'ethers'
 import express, { Request, Response } from 'express'
 import { OrderStatus } from './config'
 import db, { initDb } from './services/db'
-import { batchUpdates, orderQueue, setupEvents } from './services/orders'
+import {
+  batchUpdates,
+  getAverageOrderSize,
+  getBiggestSavesPercentage,
+  getBiggestSaveUsd,
+  getExecutedOrders,
+  getLargestOrder,
+  orderQueue,
+  setupEvents,
+} from './services/orders'
 import { CronJob } from 'cron'
+import Moralis from 'moralis/node'
+import { amountIsCorrect } from './utils'
 
 config()
 
@@ -14,16 +25,17 @@ const start = async () => {
   console.log('Loading db')
   await initDb()
 
+  await Moralis.start({
+    serverUrl: process.env.MORALIS_SERVER_URL,
+    appId: process.env.MORALIS_APP_ID,
+  })
+
   console.log('Init express')
   const app = express()
   const port = process.env.PORT || 5000
 
   setupEvents()
-
-  if ((await (db?.data?.orders || []).length) === 0) {
-    console.log('No orders found, starting to batch')
-    batchUpdates().then(() => console.log('Batching done'))
-  }
+  batchUpdates()
 
   app.get('/orders', async (req: Request, res: Response) => {
     res.status(200).send(db.data?.orders || [])
@@ -52,6 +64,11 @@ const start = async () => {
     }
   })
 
+  app.get('/executed', async (req: Request, res: Response) => {
+    const orders = await getExecutedOrders()
+    res.status(200).send(orders)
+  })
+
   const job = new CronJob(
     '55 * * * *',
     async () => {
@@ -68,22 +85,12 @@ const start = async () => {
   app.get('/stats', async (req: Request, res: Response) => {
     try {
       const orders = db.data?.orders || []
-
+      const averageOrderSize = await getAverageOrderSize()
       const openOrders = orders.filter(
         (order) => order.status === OrderStatus.OPEN
       )
 
-      const valueIsCorrect = (value: any): boolean => value && value != '0'
-      const executedOrders = orders
-        .filter((order) => order.status === OrderStatus.CLOSED)
-        .filter((order) =>
-          valueIsCorrect(order.createdBlock?.amounts.amountOutMin)
-        )
-        .filter((order) => valueIsCorrect(order.createdBlock?.amounts.amountIn))
-        .filter((order) =>
-          valueIsCorrect(order.executedBlock?.amounts.recieved)
-        )
-
+      const executedOrders = await getExecutedOrders()
       const executedOrdersLocked = executedOrders
         .map((order) => order.createdBlock.amounts.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
@@ -103,7 +110,7 @@ const start = async () => {
 
       const currentlyLocked = openOrders
         .filter((order) =>
-          valueIsCorrect(order.createdBlock?.amounts?.amountIn)
+          amountIsCorrect(order.createdBlock?.amounts?.amountIn)
         )
         .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
@@ -111,7 +118,6 @@ const start = async () => {
       const canceledOrders = orders.filter(
         (order) => order.status === OrderStatus.CANCELED
       )
-
       const amountOutMinTotal = executedOrders
         .map((order) => ethers.utils.formatUnits(order.amountOutMin))
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
@@ -132,6 +138,7 @@ const start = async () => {
           canceledOrders.length,
         currentlyLocked,
         totalLocked,
+        averageOrderSize,
 
         executed: {
           amountIn: executedOrdersLocked,
@@ -222,6 +229,24 @@ const start = async () => {
       return res.status(500).send(e.message)
     }
   })
+
+  app.get('/leaderboard', async (req: Request, res: Response) => {
+    const largestOrder = await getLargestOrder()
+    const biggestPercentageSaved = await getBiggestSavesPercentage()
+    const biggestSaveUsd = await getBiggestSaveUsd()
+
+    res.status(200).json({
+      largestOrder,
+      biggestPercentageSaved,
+      biggestSaveUsd,
+    })
+  })
+
+  // app.get('/top-users', async (req: Request, res: Response) => {
+  //   const order = await getLargestOrder()
+
+  //   res.status(200).send(order)
+  // })
 
   // start the express server
   app.listen(port, () => {

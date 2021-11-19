@@ -4,6 +4,7 @@ import axios from 'axios'
 import Decimal from 'decimal.js'
 import { ethers } from 'ethers'
 import { getStandardProvider } from './providers'
+import Moralis from 'moralis/node'
 
 const ApiCache = {
   caches: {} as Record<string, any>,
@@ -62,22 +63,37 @@ const getPrice = async ({
 }: {
   token: string
   blockNumber: string
-}): Promise<string | void> => {
-  const apiURL =
-    'https://bsc.streamingfast.io/subgraphs/name/pancakeswap/exchange-v2'
-  // Get price for token with block number
+}): Promise<number | void> => {
   try {
-    const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
-      block: Number(blockNumber),
-      token: token.toLowerCase(),
+    const result = await Moralis.Web3API.token.getTokenPrice({
+      address: token,
+      chain: 'bsc',
+      to_block: Number(blockNumber),
+      exchange: 'PancakeSwapv2',
     })
-
-    if (result.token) {
-      return result.token.derivedUSD
+    if (result.usdPrice) {
+      return result.usdPrice
     }
   } catch (e) {
     console.error('getPrice error', e)
   }
+
+  // console.log({ price })
+  // const apiURL =
+  //   'https://bsc.streamingfast.io/subgraphs/name/pancakeswap/exchange-v2'
+  // // Get price for token with block number
+  // try {
+  //   const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
+  //     block: Number(blockNumber),
+  //     token: token.toLowerCase(),
+  //   })
+
+  //   if (result.token) {
+  //     return result.token.derivedUSD
+  //   }
+  // } catch (e) {
+  //   console.error('getPrice error', e)
+  // }
 }
 
 export const getAmountForToken = async ({
@@ -96,7 +112,9 @@ export const getAmountForToken = async ({
     const price = await getPrice({ token, blockNumber })
 
     if (!price) {
-      return Promise.reject('Could not get price.')
+      return Promise.reject(
+        `Could not get price. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
+      )
     }
 
     const erc20Token = new ethers.Contract(
