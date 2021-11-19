@@ -96,6 +96,9 @@ const getPrice = async ({
   // }
 }
 
+export let ignoredTokens: string[] = []
+export const getIgnoredTokens = (): string[] => ignoredTokens
+
 export const getAmountForToken = async ({
   token,
   amount,
@@ -119,10 +122,32 @@ export const getAmountForToken = async ({
 
     const erc20Token = new ethers.Contract(
       token,
-      ['function decimals() public view returns (uint8)'],
+      [
+        'function decimals() public view returns (uint8)',
+        'function totalSupply() public view returns (uint256)',
+      ],
       getStandardProvider()
     )
     const decimals = await erc20Token.decimals()
+
+    if (decimals != 18) {
+      const totalSupply = await erc20Token.totalSupply()
+
+      // Set the limit to this to ignore shitcoins
+      // 70 000 000 000 000
+      const maxSupply = new Decimal('70000000000000')
+      const currentSupply = new Decimal(
+        ethers.utils.formatUnits(totalSupply, decimals)
+      )
+      if (currentSupply.gt(maxSupply)) {
+        ignoredTokens.push(token)
+
+        return Promise.reject(
+          `Token is unstable is blacklisted. Our limit of ${maxSupply.toString()} was exceeded with ${currentSupply.toString()}. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
+        )
+      }
+    }
+
     const value = new Decimal(price).mul(
       ethers.utils.formatUnits(amount, decimals)
     )

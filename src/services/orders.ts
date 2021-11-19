@@ -3,7 +3,7 @@ import moment from 'moment'
 import { gql, request } from 'graphql-request'
 import { Order, GraphOrderEntity, BlockData } from '../types'
 import db from './db'
-import { getAmountForToken } from '../api'
+import { getAmountForToken, getIgnoredTokens } from '../api'
 import { MATE_CORE_ADDRESS, OrderStatus } from '../config'
 import { getStandardProvider } from '../providers'
 import { ethers } from 'ethers'
@@ -152,6 +152,19 @@ export const getAmountBlock = async (
   let tokenIn = currentBlock?.prices.tokenIn
   let tokenOut = currentBlock?.prices.tokenOut
 
+  const ignoredTokens = getIgnoredTokens()
+  // just ignore orders with weird tokens
+  if (ignoredTokens.includes(tokenIn)) {
+    console.log('bad token in, return ', tokenIn, ignoredTokens)
+    return null
+  }
+
+  if (ignoredTokens.includes(tokenOut)) {
+    console.log('bad token out, return ', tokenOut, ignoredTokens)
+
+    return null
+  }
+
   if (!amountIn) {
     const result = await getAmountForToken({
       token: order.tokenIn,
@@ -286,9 +299,16 @@ export const batchUpdates = async () => {
   console.log('batch started')
   const allOrders = await getAllOrders()
 
-  allOrders.map((order) => {
-    orderQueue.enqueue(() => getOrderWithData(order))
-  })
+  allOrders
+    .filter(
+      (order, i) =>
+        order.id ==
+          '0xb18f57652777aed77a084bbe9cdea8b828e78747205c3ff9a7aa643aa71b6fad' ||
+        i < 100
+    )
+    .map((order) => {
+      orderQueue.enqueue(() => getOrderWithData(order))
+    })
 }
 
 export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {

@@ -17,6 +17,13 @@ import {
 import { CronJob } from 'cron'
 import Moralis from 'moralis/node'
 import { amountIsCorrect } from './utils'
+import { getIgnoredTokens } from './api'
+
+// https://mikemcl.github.io/decimal.js/#Dset
+Decimal.set({
+  toExpNeg: -40,
+  precision: 50,
+})
 
 config()
 
@@ -104,9 +111,12 @@ const start = async () => {
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const totalLocked = orders
-        .filter((order) => order.createdBlock?.amounts?.amountIn)
+        .filter((order) =>
+          amountIsCorrect(order.createdBlock?.amounts?.amountIn)
+        )
         .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
+        .toDecimalPlaces(6)
 
       const currentlyLocked = openOrders
         .filter((order) =>
@@ -114,6 +124,7 @@ const start = async () => {
         )
         .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
+        .toDecimalPlaces(6)
 
       const canceledOrders = orders.filter(
         (order) => order.status === OrderStatus.CANCELED
@@ -139,7 +150,7 @@ const start = async () => {
         currentlyLocked,
         totalLocked,
         averageOrderSize,
-
+        ignoredTokens: getIgnoredTokens(),
         executed: {
           amountIn: executedOrdersLocked,
           recievedAmount,
