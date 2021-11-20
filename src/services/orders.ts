@@ -3,7 +3,7 @@ import moment from 'moment'
 import { gql, request } from 'graphql-request'
 import { Order, GraphOrderEntity, BlockData } from '../types'
 import db from './db'
-import { getAmountForToken, getIgnoredTokens } from '../api'
+import { getAmountForToken, getIgnoredTokens, ignoredTokens } from '../api'
 import { MATE_CORE_ADDRESS, OrderStatus } from '../config'
 import { getStandardProvider } from '../providers'
 import { ethers } from 'ethers'
@@ -380,6 +380,7 @@ export const getExecutedOrders = async (): Promise<Order[]> => {
   const orders = (await db.data?.orders) || []
 
   return orders
+    .filter(orderIsValid)
     .filter((order) => order.status === OrderStatus.CLOSED)
     .filter((order) =>
       amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
@@ -445,4 +446,11 @@ export const getBiggestSaveUsd = async (): Promise<Order[]> => {
       ...order,
       savedUsd: order.savedUsd.toString(),
     }))
+}
+
+export const orderIsValid = (order: Order): boolean => {
+  return (
+    !ignoredTokens.includes(order.tokenIn) &&
+    !ignoredTokens.includes(order.tokenOut)
+  )
 }

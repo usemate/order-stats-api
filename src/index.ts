@@ -11,6 +11,7 @@ import {
   getBiggestSaveUsd,
   getExecutedOrders,
   getLargestOrder,
+  orderIsValid,
   orderQueue,
   setupEvents,
 } from './services/orders'
@@ -96,8 +97,8 @@ const start = async () => {
       const openOrders = orders.filter(
         (order) => order.status === OrderStatus.OPEN
       )
-
       const executedOrders = await getExecutedOrders()
+
       const executedOrdersLocked = executedOrders
         .map((order) => order.createdBlock.amounts.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
@@ -110,21 +111,36 @@ const start = async () => {
         .map((order) => order.executedBlock.amounts.recieved)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
-      const totalLocked = orders
+      const totalOrdersValid = orders
+        .filter(orderIsValid)
         .filter((order) =>
           amountIsCorrect(order.createdBlock?.amounts?.amountIn)
         )
+
+      const totalLocked = totalOrdersValid
         .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
         .toDecimalPlaces(6)
 
-      const currentlyLocked = openOrders
+      const openOrdersValid = openOrders
+        .filter(orderIsValid)
         .filter((order) =>
           amountIsCorrect(order.createdBlock?.amounts?.amountIn)
         )
+
+      const currentlyLocked = openOrdersValid
         .map((order) => order.createdBlock?.amounts?.amountIn)
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
         .toDecimalPlaces(6)
+
+      const defects = {
+        executedOrdersIgnored:
+          orders.filter((order) => order.status === OrderStatus.CLOSED).length -
+          executedOrders.length,
+        openOrdersIgnored: openOrders.length - openOrdersValid.length,
+        totalOrdersIgnored: orders.length - totalOrdersValid.length,
+        ignoredTokens: getIgnoredTokens(),
+      }
 
       const canceledOrders = orders.filter(
         (order) => order.status === OrderStatus.CANCELED
@@ -140,6 +156,7 @@ const start = async () => {
       res.status(200).json({
         orderCount: orders.length,
         openOrderCount: openOrders.length,
+        defects,
         executedOrderCount: executedOrders.length,
         canceledOrderCount: canceledOrders.length,
         expiredOrdersCount:
@@ -150,7 +167,6 @@ const start = async () => {
         currentlyLocked,
         totalLocked,
         averageOrderSize,
-        ignoredTokens: getIgnoredTokens(),
         executed: {
           amountIn: executedOrdersLocked,
           recievedAmount,
@@ -250,6 +266,20 @@ const start = async () => {
       largestOrder,
       biggestPercentageSaved,
       biggestSaveUsd,
+    })
+  })
+
+  app.get('/defects', async (req: Request, res: Response) => {
+    const executedOrders = await getExecutedOrders()
+    const executedOrdersIds = executedOrders.map((order) => order.id)
+    const orders = (await db.data?.orders) || []
+
+    const selectedOrders = orders
+      .filter((order) => order.status === OrderStatus.CLOSED)
+      .filter((order) => !executedOrdersIds.includes(order.id))
+
+    res.status(200).json({
+      ordersWithoutPrice: selectedOrders,
     })
   })
 

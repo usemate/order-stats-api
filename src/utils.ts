@@ -1,7 +1,21 @@
 import Decimal from 'decimal.js'
-import { BlockData } from './types'
+import { BlockData, Order } from './types'
 
-export const amountIsCorrect = (value: any): boolean => value && value != '0'
+export const amountIsCorrect = (value: any): boolean => {
+  if (!value) {
+    return false
+  }
+
+  if (value == '0') {
+    return false
+  }
+
+  if (value.includes('+')) {
+    return false
+  }
+
+  return true
+}
 
 export const getSavedFromOrder = (
   createdBlock: BlockData,

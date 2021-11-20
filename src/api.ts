@@ -75,29 +75,30 @@ const getPrice = async ({
       return result.usdPrice
     }
   } catch (e) {
-    console.error('getPrice error', e)
+    console.error('getPrice Moralis.Web3API error', e)
   }
 
-  // console.log({ price })
-  // const apiURL =
-  //   'https://bsc.streamingfast.io/subgraphs/name/pancakeswap/exchange-v2'
-  // // Get price for token with block number
-  // try {
-  //   const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
-  //     block: Number(blockNumber),
-  //     token: token.toLowerCase(),
-  //   })
+  const apiURL =
+    'https://bsc.streamingfast.io/subgraphs/name/pancakeswap/exchange-v2'
+  // Get price for token with block number
+  try {
+    const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
+      block: Number(blockNumber),
+      token: token.toLowerCase(),
+    })
 
-  //   if (result.token) {
-  //     return result.token.derivedUSD
-  //   }
-  // } catch (e) {
-  //   console.error('getPrice error', e)
-  // }
+    if (result.token) {
+      return result.token.derivedUSD
+    }
+  } catch (e) {
+    console.error('getPrice streamingfast error', e)
+  }
 }
 
 export let ignoredTokens: string[] = [
   '0x87230146E138d3F296a9a77e497A2A83012e9Bc5',
+  '0x7a565284572d03ec50c35396f7d6001252eb43b6',
+  '0x87230146e138d3f296a9a77e497a2a83012e9bc5',
 ]
 export const getIgnoredTokens = (): string[] => ignoredTokens
 
@@ -132,25 +133,30 @@ export const getAmountForToken = async ({
     )
     const decimals = await erc20Token.decimals()
 
-    if (decimals != 18) {
-      const totalSupply = await erc20Token.totalSupply()
-
-      // Set the limit to this to ignore shitcoins
-      // 100 000 000 000 000 000
-      const maxSupply = new Decimal('100000000000000000')
-      const currentSupply = new Decimal(
-        ethers.utils.formatUnits(totalSupply, decimals)
+    if (ignoredTokens.includes(token)) {
+      return Promise.reject(
+        `Token is unstable and is blacklisted. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
       )
-      if (currentSupply.gt(maxSupply)) {
-        if (!ignoredTokens.includes(token)) {
-          ignoredTokens.push(token)
-        }
-
-        return Promise.reject(
-          `Token is unstable is blacklisted. Our limit of ${maxSupply.toString()} was exceeded with ${currentSupply.toString()}. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
-        )
-      }
     }
+    // if (decimals != 18) {
+    //   const totalSupply = await erc20Token.totalSupply()
+
+    //   // Set the limit to this to ignore shitcoins
+    //   // 100 000 000 000 000 000
+    //   const maxSupply = new Decimal('100000000000000000')
+    //   const currentSupply = new Decimal(
+    //     ethers.utils.formatUnits(totalSupply, decimals)
+    //   )
+    //   if (currentSupply.gt(maxSupply)) {
+    //     if (!ignoredTokens.includes(token)) {
+    //       ignoredTokens.push(token)
+    //     }
+
+    //     return Promise.reject(
+    //       `Token is unstable is blacklisted. Our limit of ${maxSupply.toString()} was exceeded with ${currentSupply.toString()}. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
+    //     )
+    //   }
+    // }
 
     const value = new Decimal(price).mul(
       ethers.utils.formatUnits(amount, decimals)
