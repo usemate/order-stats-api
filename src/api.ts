@@ -96,7 +96,9 @@ const getPrice = async ({
   // }
 }
 
-export let ignoredTokens: string[] = []
+export let ignoredTokens: string[] = [
+  '0x87230146E138d3F296a9a77e497A2A83012e9Bc5',
+]
 export const getIgnoredTokens = (): string[] => ignoredTokens
 
 export const getAmountForToken = async ({

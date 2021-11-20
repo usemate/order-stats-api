@@ -123,6 +123,17 @@ const ordersQuery = gql`
     }
   }
 `
+const getValue = (val?: string) => {
+  if (!val) {
+    return
+  }
+
+  if (val == '0') {
+    return
+  }
+
+  return val
+}
 
 export const getAmountBlock = async (
   order: GraphOrderEntity,
@@ -132,18 +143,6 @@ export const getAmountBlock = async (
 ): Promise<BlockData | null> => {
   if (!blockNumber) {
     return null
-  }
-
-  const getValue = (val?: string) => {
-    if (!val) {
-      return
-    }
-
-    if (val == '0') {
-      return
-    }
-
-    return val
   }
 
   let amountIn = getValue(currentBlock?.amounts.amountIn)
@@ -295,12 +294,46 @@ export const updateOrder = async (orderId: string, data: Partial<Order>) => {
   await db.write()
 }
 
+const orderAlreadyPopulated = (
+  order: GraphOrderEntity,
+  currentOrders: Order[]
+): boolean => {
+  const selectedOrder = currentOrders.find(
+    (currentOrder) => currentOrder.id.toLowerCase() === order.id.toLowerCase()
+  )
+
+  if (!selectedOrder) {
+    return false
+  }
+
+  const gotCreatedValues = Boolean(
+    getValue(selectedOrder.createdBlock?.amounts.amountIn) &&
+      getValue(selectedOrder.createdBlock?.amounts.amountOutMin)
+  )
+
+  if (order.status !== 'Closed') {
+    return gotCreatedValues
+  }
+
+  const populated = Boolean(
+    gotCreatedValues &&
+      getValue(selectedOrder.executedBlock?.amounts.amountOutMin) &&
+      getValue(selectedOrder.executedBlock?.amounts.recieved)
+  )
+
+  return populated
+}
+
 export const batchUpdates = async () => {
-  console.log('batch started')
+  console.log('batch started, clearing queue')
+  orderQueue.clear()
   const allOrders = await getAllOrders()
+  const orders = (await db.data.orders) || []
 
   allOrders.map((order) => {
-    orderQueue.enqueue(() => getOrderWithData(order))
+    if (!orderAlreadyPopulated(order, orders)) {
+      orderQueue.enqueue(() => getOrderWithData(order))
+    }
   })
 }
 

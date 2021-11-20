@@ -77,7 +77,7 @@ const start = async () => {
   })
 
   const job = new CronJob(
-    '55 * * * *',
+    '0 8 * * *',
     async () => {
       console.log('Cron job triggered')
       batchUpdates()
