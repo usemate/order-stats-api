@@ -78,21 +78,21 @@ const getPrice = async ({
     console.error('getPrice Moralis.Web3API error', e)
   }
 
-  const apiURL =
-    'https://bsc.streamingfast.io/subgraphs/name/pancakeswap/exchange-v2'
-  // Get price for token with block number
-  try {
-    const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
-      block: Number(blockNumber),
-      token: token.toLowerCase(),
-    })
+  // const apiURL =
+  //   'https://bsc.streamingfast.io/subgraphs/name/pancakeswap/exchange-v2'
+  // // Get price for token with block number
+  // try {
+  //   const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
+  //     block: Number(blockNumber),
+  //     token: token.toLowerCase(),
+  //   })
 
-    if (result.token) {
-      return result.token.derivedUSD
-    }
-  } catch (e) {
-    console.error('getPrice streamingfast error', e)
-  }
+  //   if (result.token) {
+  //     return result.token.derivedUSD
+  //   }
+  // } catch (e) {
+  //   console.error('getPrice streamingfast error', e)
+  // }
 }
 
 export let ignoredTokens: string[] = [
