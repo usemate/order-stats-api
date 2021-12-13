@@ -339,7 +339,6 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
   let done = false
   let first = 1000
   let skip = 0
-  done = true
   const whileGenerator = function* () {
     while (!done) {
       yield skip
@@ -370,6 +369,8 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
     console.error('Failed getting orders from TheGraph!')
     console.error(e)
   }
+
+  console.log('lenght:::', orders.length)
 
   return orders
 }

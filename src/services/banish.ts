@@ -1,5 +1,5 @@
 const findIt = (val) => (item) =>
-  item && item.toLowerCase() === val.toLowerCase()
+  item && item.toLowerCase() === val && val.toLowerCase()
 
 class Banish {
   orders: string[] = []
