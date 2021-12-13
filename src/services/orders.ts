@@ -337,9 +337,7 @@ export const batchUpdates = async () => {
 
 export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
   let done = false
-  // let first = 1000
-  let first = 50
-  // let skip = 0
+  let first = 1000
   let skip = 0
   done = true
   const whileGenerator = function* () {
