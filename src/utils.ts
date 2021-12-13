@@ -29,10 +29,11 @@ export const getSavedFromOrder = (
     const recievedAmount = new Decimal(executedBlock.amounts.recieved)
     const percentage = recievedAmount
       .sub(amountIn)
-      .div(recievedAmount)
+      .div(amountIn)
       .mul(100)
       .toDecimalPlaces(5)
       .toString()
+
     const amount = recievedAmount.sub(amountIn).toString()
 
     return {

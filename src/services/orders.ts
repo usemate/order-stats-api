@@ -3,13 +3,14 @@ import moment from 'moment'
 import { gql, request } from 'graphql-request'
 import { Order, GraphOrderEntity, BlockData } from '../types'
 import db from './db'
-import { getAmountForToken, getIgnoredTokens, ignoredTokens } from '../api'
+import { getAmountForToken } from '../api'
 import { MATE_CORE_ADDRESS, OrderStatus } from '../config'
 import { getStandardProvider } from '../providers'
 import { ethers } from 'ethers'
 import mateCoreAbi from '../abi/MateCore.json'
 import { amountIsCorrect, getSavedFromOrder } from '../utils'
 import Decimal from 'decimal.js'
+import banish from './banish'
 
 export const setupEvents = () => {
   const mateCore = new ethers.Contract(
@@ -151,16 +152,13 @@ export const getAmountBlock = async (
   let tokenIn = currentBlock?.prices.tokenIn
   let tokenOut = currentBlock?.prices.tokenOut
 
-  const ignoredTokens = getIgnoredTokens()
-  // just ignore orders with weird tokens
-  if (ignoredTokens.includes(tokenIn)) {
-    console.log('bad token in, return ', tokenIn, ignoredTokens)
-    return null
-  }
-
-  if (ignoredTokens.includes(tokenOut)) {
-    console.log('bad token out, return ', tokenOut, ignoredTokens)
-
+  if (
+    banish.ignore({
+      tokenIn,
+      tokenOut,
+      orderId: order.id,
+    })
+  ) {
     return null
   }
 
@@ -339,9 +337,11 @@ export const batchUpdates = async () => {
 
 export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
   let done = false
-  let first = 1000
+  // let first = 1000
+  let first = 50
+  // let skip = 0
   let skip = 0
-
+  done = true
   const whileGenerator = function* () {
     while (!done) {
       yield skip
@@ -449,8 +449,9 @@ export const getBiggestSaveUsd = async (): Promise<Order[]> => {
 }
 
 export const orderIsValid = (order: Order): boolean => {
-  return (
-    !ignoredTokens.includes(order.tokenIn) &&
-    !ignoredTokens.includes(order.tokenOut)
-  )
+  return banish.ignore({
+    tokenIn: order.tokenIn,
+    tokenOut: order.tokenOut,
+    orderId: order.id,
+  })
 }
