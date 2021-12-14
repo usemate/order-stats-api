@@ -7,6 +7,7 @@ import db, { initDb } from './services/db'
 import {
   batchUpdates,
   getAverageOrderSize,
+  getBiggestOpenOrder,
   getBiggestSavesPercentage,
   getBiggestSaveUsd,
   getExecutedOrders,
@@ -263,14 +264,17 @@ const start = async () => {
       const largestOrder = await getLargestOrder()
       const biggestPercentageSaved = await getBiggestSavesPercentage()
       const biggestSaveUsd = await getBiggestSaveUsd()
+      const biggestOpenOrders = await getBiggestOpenOrder()
 
       res.status(200).json({
         largestOrder,
         biggestPercentageSaved,
         biggestSaveUsd,
+        biggestOpenOrders,
       })
     } catch (e) {
-      res.status(500).send()
+      console.error(e)
+      res.status(500).send(e.message)
     }
   })
 

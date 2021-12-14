@@ -33,7 +33,7 @@ class Banish {
     return this.tokens.some(findIt(token))
   }
 
-  ignore = ({
+  shouldIgnore = ({
     tokenIn,
     tokenOut,
     orderId,
@@ -44,18 +44,20 @@ class Banish {
   }): boolean => {
     if (this.isTokenIgnored(tokenIn)) {
       console.log('bad token in, return ', tokenIn)
-      return false
+      return true
     }
 
     if (this.isTokenIgnored(tokenOut)) {
       console.log('bad token out, return ', tokenOut)
-      return false
+      return true
     }
 
     if (this.orders.some(findIt(orderId))) {
       console.log('bad orderid, return ', orderId)
-      return false
+      return true
     }
+
+    return false
   }
 }
 

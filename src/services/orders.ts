@@ -100,8 +100,8 @@ export const setupEvents = () => {
 }
 
 export const orderQueue = new Queue({
-  concurrent: 2,
-  interval: 2000,
+  concurrent: 1,
+  interval: 1000,
 })
 
 const ordersQuery = gql`
@@ -153,12 +153,13 @@ export const getAmountBlock = async (
   let tokenOut = currentBlock?.prices.tokenOut
 
   if (
-    banish.ignore({
+    banish.shouldIgnore({
       tokenIn,
       tokenOut,
       orderId: order.id,
     })
   ) {
+    console.log('getAmountBlock - ignore order: ', order.id)
     return null
   }
 
@@ -228,6 +229,8 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
         'amountIn'
       ),
     ])
+
+    console.log({ executedBlock, id: order.id })
 
     const updated = {
       createdBlock,
@@ -370,8 +373,6 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
     console.error(e)
   }
 
-  console.log('lenght:::', orders.length)
-
   return orders
 }
 
@@ -390,13 +391,14 @@ export const getExecutedOrders = async (): Promise<Order[]> => {
 
 export const getLargestOrder = async (): Promise<Order[]> => {
   const orders = await getExecutedOrders()
+
   return orders
     .map((order) => ({
       ...order,
       recievedAmount: new Decimal(order.executedBlock.amounts.recieved),
     }))
     .sort((a, b) => b.recievedAmount.comparedTo(a.recievedAmount))
-    .slice(0, 3)
+    .slice(0, 15)
     .map((order) => ({
       ...order,
       recievedAmount: order.recievedAmount.toString(),
@@ -411,7 +413,7 @@ export const getAverageOrderSize = async (): Promise<number> => {
       .map((order) =>
         new Decimal(order.executedBlock.amounts.recieved).toNumber()
       )
-      .reduce((a, b) => a + b) / orders.length
+      .reduce((a, b) => a + b, 0) / orders.length
   )
 }
 
@@ -424,7 +426,7 @@ export const getBiggestSavesPercentage = async (): Promise<Order[]> => {
       savedPercentage: new Decimal(order.savedPercentage),
     }))
     .sort((a, b) => b.savedPercentage.comparedTo(a.savedPercentage))
-    .slice(0, 3)
+    .slice(0, 15)
     .map((order) => ({
       ...order,
       savedPercentage: order.savedPercentage.toString(),
@@ -440,15 +442,37 @@ export const getBiggestSaveUsd = async (): Promise<Order[]> => {
       savedUsd: new Decimal(order.savedUsd),
     }))
     .sort((a, b) => b.savedUsd.comparedTo(a.savedUsd))
-    .slice(0, 3)
+    .slice(0, 15)
     .map((order) => ({
       ...order,
       savedUsd: order.savedUsd.toString(),
     }))
 }
 
+export const getBiggestOpenOrder = async (): Promise<Order[]> => {
+  const orders = (await db.data?.orders) || []
+
+  return orders
+    .filter(orderIsValid)
+    .filter((order) => order.status === OrderStatus.OPEN)
+    .filter((order) =>
+      amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
+    )
+    .filter((order) => amountIsCorrect(order.createdBlock?.amounts.amountIn))
+    .map((order) => ({
+      ...order,
+      amountInUsd: new Decimal(order.createdBlock.amounts.amountIn),
+    }))
+    .sort((a, b) => b.amountInUsd.comparedTo(a.amountInUsd))
+    .slice(0, 15)
+    .map((order) => ({
+      ...order,
+      amountInUsd: order.amountInUsd.toString(),
+    }))
+}
+
 export const orderIsValid = (order: Order): boolean => {
-  return banish.ignore({
+  return !banish.shouldIgnore({
     tokenIn: order.tokenIn,
     tokenOut: order.tokenOut,
     orderId: order.id,
