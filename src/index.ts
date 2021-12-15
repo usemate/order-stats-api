@@ -7,6 +7,7 @@ import db, { initDb } from './services/db'
 import {
   batchUpdates,
   getAverageOrderSize,
+  getBiggestOpenOrder,
   getBiggestSavesPercentage,
   getBiggestSaveUsd,
   getExecutedOrders,
@@ -18,8 +19,8 @@ import {
 import { CronJob } from 'cron'
 import Moralis from 'moralis/node'
 import { amountIsCorrect } from './utils'
-import { getIgnoredTokens } from './api'
-
+import bodyParser from 'body-parser'
+import banish from './services/banish'
 // https://mikemcl.github.io/decimal.js/#Dset
 Decimal.set({
   toExpNeg: -40,
@@ -44,6 +45,8 @@ const start = async () => {
 
   setupEvents()
   batchUpdates()
+
+  app.use(bodyParser.json())
 
   app.get('/orders', async (req: Request, res: Response) => {
     res.status(200).send(db.data?.orders || [])
@@ -139,7 +142,6 @@ const start = async () => {
           executedOrders.length,
         openOrdersIgnored: openOrders.length - openOrdersValid.length,
         totalOrdersIgnored: orders.length - totalOrdersValid.length,
-        ignoredTokens: getIgnoredTokens(),
       }
 
       const canceledOrders = orders.filter(
@@ -258,15 +260,22 @@ const start = async () => {
   })
 
   app.get('/leaderboard', async (req: Request, res: Response) => {
-    const largestOrder = await getLargestOrder()
-    const biggestPercentageSaved = await getBiggestSavesPercentage()
-    const biggestSaveUsd = await getBiggestSaveUsd()
+    try {
+      const largestOrder = await getLargestOrder()
+      const biggestPercentageSaved = await getBiggestSavesPercentage()
+      const biggestSaveUsd = await getBiggestSaveUsd()
+      const biggestOpenOrders = await getBiggestOpenOrder()
 
-    res.status(200).json({
-      largestOrder,
-      biggestPercentageSaved,
-      biggestSaveUsd,
-    })
+      res.status(200).json({
+        largestOrder,
+        biggestPercentageSaved,
+        biggestSaveUsd,
+        biggestOpenOrders,
+      })
+    } catch (e) {
+      console.error(e)
+      res.status(500).send(e.message)
+    }
   })
 
   app.get('/defects', async (req: Request, res: Response) => {
@@ -281,6 +290,62 @@ const start = async () => {
     res.status(200).json({
       ordersWithoutPrice: selectedOrders,
     })
+  })
+
+  app.get('/banish', (req: Request, res: Response) => {
+    res.status(200).json({
+      ignoredTokens: banish.tokens,
+      ignoredOrders: banish.orders,
+    })
+  })
+  app.post('/whitelist-token', async (req: Request, res: Response) => {
+    try {
+      if (req.query?.token) {
+        banish.removeToken(req.query.token as string)
+      }
+
+      return res.status(200).send('ok')
+    } catch (e) {
+      console.error(e)
+    }
+    res.status(500).send('error')
+  })
+
+  app.post('/whitelist-order', async (req: Request, res: Response) => {
+    try {
+      if (req.query?.order) {
+        banish.removeOrder(req.query.order as string)
+      }
+
+      return res.status(200).send('ok')
+    } catch (e) {
+      console.error(e)
+    }
+    res.status(500).send('error')
+  })
+  app.post('/delist-token', async (req: Request, res: Response) => {
+    try {
+      if (req.query?.token) {
+        banish.addToken(req.query.token as string)
+      }
+
+      return res.status(200).send('ok')
+    } catch (e) {
+      console.error(e)
+    }
+    res.status(500).send('error')
+  })
+  app.post('/delist-order', async (req: Request, res: Response) => {
+    try {
+      if (req.query?.order) {
+        banish.addOrder(req.query.order as string)
+      }
+
+      return res.status(200).send('ok')
+    } catch (e) {
+      console.error(e)
+    }
+    res.status(500).send('error')
   })
 
   // app.get('/top-users', async (req: Request, res: Response) => {

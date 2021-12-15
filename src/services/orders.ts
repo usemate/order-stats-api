@@ -3,13 +3,14 @@ import moment from 'moment'
 import { gql, request } from 'graphql-request'
 import { Order, GraphOrderEntity, BlockData } from '../types'
 import db from './db'
-import { getAmountForToken, getIgnoredTokens, ignoredTokens } from '../api'
+import { getAmountForToken } from '../api'
 import { MATE_CORE_ADDRESS, OrderStatus } from '../config'
 import { getStandardProvider } from '../providers'
 import { ethers } from 'ethers'
 import mateCoreAbi from '../abi/MateCore.json'
 import { amountIsCorrect, getSavedFromOrder } from '../utils'
 import Decimal from 'decimal.js'
+import banish from './banish'
 
 export const setupEvents = () => {
   const mateCore = new ethers.Contract(
@@ -99,8 +100,8 @@ export const setupEvents = () => {
 }
 
 export const orderQueue = new Queue({
-  concurrent: 2,
-  interval: 2000,
+  concurrent: 1,
+  interval: 1000,
 })
 
 const ordersQuery = gql`
@@ -151,16 +152,14 @@ export const getAmountBlock = async (
   let tokenIn = currentBlock?.prices.tokenIn
   let tokenOut = currentBlock?.prices.tokenOut
 
-  const ignoredTokens = getIgnoredTokens()
-  // just ignore orders with weird tokens
-  if (ignoredTokens.includes(tokenIn)) {
-    console.log('bad token in, return ', tokenIn, ignoredTokens)
-    return null
-  }
-
-  if (ignoredTokens.includes(tokenOut)) {
-    console.log('bad token out, return ', tokenOut, ignoredTokens)
-
+  if (
+    banish.shouldIgnore({
+      tokenIn,
+      tokenOut,
+      orderId: order.id,
+    })
+  ) {
+    console.log('getAmountBlock - ignore order: ', order.id)
     return null
   }
 
@@ -230,6 +229,8 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
         'amountIn'
       ),
     ])
+
+    console.log({ executedBlock, id: order.id })
 
     const updated = {
       createdBlock,
@@ -341,7 +342,6 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
   let done = false
   let first = 1000
   let skip = 0
-
   const whileGenerator = function* () {
     while (!done) {
       yield skip
@@ -391,13 +391,14 @@ export const getExecutedOrders = async (): Promise<Order[]> => {
 
 export const getLargestOrder = async (): Promise<Order[]> => {
   const orders = await getExecutedOrders()
+
   return orders
     .map((order) => ({
       ...order,
       recievedAmount: new Decimal(order.executedBlock.amounts.recieved),
     }))
     .sort((a, b) => b.recievedAmount.comparedTo(a.recievedAmount))
-    .slice(0, 3)
+    .slice(0, 15)
     .map((order) => ({
       ...order,
       recievedAmount: order.recievedAmount.toString(),
@@ -412,7 +413,7 @@ export const getAverageOrderSize = async (): Promise<number> => {
       .map((order) =>
         new Decimal(order.executedBlock.amounts.recieved).toNumber()
       )
-      .reduce((a, b) => a + b) / orders.length
+      .reduce((a, b) => a + b, 0) / orders.length
   )
 }
 
@@ -425,7 +426,7 @@ export const getBiggestSavesPercentage = async (): Promise<Order[]> => {
       savedPercentage: new Decimal(order.savedPercentage),
     }))
     .sort((a, b) => b.savedPercentage.comparedTo(a.savedPercentage))
-    .slice(0, 3)
+    .slice(0, 15)
     .map((order) => ({
       ...order,
       savedPercentage: order.savedPercentage.toString(),
@@ -441,16 +442,39 @@ export const getBiggestSaveUsd = async (): Promise<Order[]> => {
       savedUsd: new Decimal(order.savedUsd),
     }))
     .sort((a, b) => b.savedUsd.comparedTo(a.savedUsd))
-    .slice(0, 3)
+    .slice(0, 15)
     .map((order) => ({
       ...order,
       savedUsd: order.savedUsd.toString(),
     }))
 }
 
+export const getBiggestOpenOrder = async (): Promise<Order[]> => {
+  const orders = (await db.data?.orders) || []
+
+  return orders
+    .filter(orderIsValid)
+    .filter((order) => order.status === OrderStatus.OPEN)
+    .filter((order) =>
+      amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
+    )
+    .filter((order) => amountIsCorrect(order.createdBlock?.amounts.amountIn))
+    .map((order) => ({
+      ...order,
+      amountInUsd: new Decimal(order.createdBlock.amounts.amountIn),
+    }))
+    .sort((a, b) => b.amountInUsd.comparedTo(a.amountInUsd))
+    .slice(0, 15)
+    .map((order) => ({
+      ...order,
+      amountInUsd: order.amountInUsd.toString(),
+    }))
+}
+
 export const orderIsValid = (order: Order): boolean => {
-  return (
-    !ignoredTokens.includes(order.tokenIn) &&
-    !ignoredTokens.includes(order.tokenOut)
-  )
+  return !banish.shouldIgnore({
+    tokenIn: order.tokenIn,
+    tokenOut: order.tokenOut,
+    orderId: order.id,
+  })
 }

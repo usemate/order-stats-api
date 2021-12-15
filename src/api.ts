@@ -5,6 +5,7 @@ import Decimal from 'decimal.js'
 import { ethers } from 'ethers'
 import { getStandardProvider } from './providers'
 import Moralis from 'moralis/node'
+import banish from './services/banish'
 
 const ApiCache = {
   caches: {} as Record<string, any>,
@@ -95,13 +96,6 @@ const getPrice = async ({
   // }
 }
 
-export let ignoredTokens: string[] = [
-  '0x87230146E138d3F296a9a77e497A2A83012e9Bc5',
-  '0x7a565284572d03ec50c35396f7d6001252eb43b6',
-  '0x87230146e138d3f296a9a77e497a2a83012e9bc5',
-]
-export const getIgnoredTokens = (): string[] => ignoredTokens
-
 export const getAmountForToken = async ({
   token,
   amount,
@@ -133,7 +127,7 @@ export const getAmountForToken = async ({
     )
     const decimals = await erc20Token.decimals()
 
-    if (ignoredTokens.includes(token)) {
+    if (banish.isTokenIgnored(token)) {
       return Promise.reject(
         `Token is unstable and is blacklisted. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
       )
