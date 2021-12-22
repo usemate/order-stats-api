@@ -4,6 +4,6 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - '2000:5000'
+      - '2000:2000'
     volumes:
       - ./db.json:/home/node/app/db.json
