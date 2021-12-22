@@ -232,8 +232,6 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
       ),
     ])
 
-    console.log({ executedBlock, id: order.id })
-
     const updated = {
       createdBlock,
       executedBlock,
@@ -483,7 +481,6 @@ export const getLatestUpdatedOrders = async (): Promise<Order[]> => {
         order.executedTimestamp ||
         order.createdTimestamp
 
-      console.log(order.canceledTimestamp, order.executedTimestamp)
       return {
         ...order,
         date: moment(Number(timestamp) * 1000),
