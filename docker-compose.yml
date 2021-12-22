@@ -5,3 +5,5 @@ services:
     restart: unless-stopped
     ports:
       - '2000:5010'
+    volumes:
+      - ./db.json:/home/node/app/db.json

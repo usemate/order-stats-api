@@ -59,6 +59,7 @@ export const setupEvents = () => {
 
     updateOrder(id, {
       status: OrderStatus.CANCELED,
+      canceledTimestamp: timestamp,
     })
   })
 
@@ -101,13 +102,14 @@ export const setupEvents = () => {
 
 export const orderQueue = new Queue({
   concurrent: 1,
-  interval: 1000,
+  interval: 1500,
 })
 
 const ordersQuery = gql`
   query getOrders($skip: Int, $first: Int) {
     orders(first: $first, skip: $skip) {
       id
+      canceledTimestamp
       createdTimestamp
       executedTimestamp
       status
@@ -229,8 +231,6 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
         'amountIn'
       ),
     ])
-
-    console.log({ executedBlock, id: order.id })
 
     const updated = {
       createdBlock,
@@ -468,6 +468,29 @@ export const getBiggestOpenOrder = async (): Promise<Order[]> => {
     .map((order) => ({
       ...order,
       amountInUsd: order.amountInUsd.toString(),
+    }))
+}
+
+export const getLatestUpdatedOrders = async (): Promise<Order[]> => {
+  const orders = (await db.data?.orders) || []
+
+  return orders
+    .map((order) => {
+      const timestamp =
+        order.canceledTimestamp ||
+        order.executedTimestamp ||
+        order.createdTimestamp
+
+      return {
+        ...order,
+        date: moment(Number(timestamp) * 1000),
+      }
+    })
+    .sort((a, b) => b.date.diff(a.date))
+    .slice(0, 25)
+    .map((order) => ({
+      ...order,
+      date: order.date.format(),
     }))
 }
 

@@ -23,6 +23,7 @@ export type GraphOrderEntity = {
   id: string
   createdTimestamp: string
   executedTimestamp?: string
+  canceledTimestamp?: string
   creator: string
   tokenIn: string
   tokenOut: string

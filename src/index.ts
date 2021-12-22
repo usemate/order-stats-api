@@ -12,6 +12,7 @@ import {
   getBiggestSaveUsd,
   getExecutedOrders,
   getLargestOrder,
+  getLatestUpdatedOrders,
   orderIsValid,
   orderQueue,
   setupEvents,
@@ -271,6 +272,19 @@ const start = async () => {
         biggestPercentageSaved,
         biggestSaveUsd,
         biggestOpenOrders,
+      })
+    } catch (e) {
+      console.error(e)
+      res.status(500).send(e.message)
+    }
+  })
+
+  app.get('/latest', async (req: Request, res: Response) => {
+    try {
+      const orders = await getLatestUpdatedOrders()
+
+      res.status(200).json({
+        orders,
       })
     } catch (e) {
       console.error(e)
