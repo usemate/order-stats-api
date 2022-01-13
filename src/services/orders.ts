@@ -106,8 +106,8 @@ export const orderQueue = new Queue({
 })
 
 const ordersQuery = gql`
-  query getOrders($skip: Int, $first: Int) {
-    orders(first: $first, skip: $skip) {
+  query getOrders($lastID: String) {
+    orders(first: 1000, where: { id_gt: $lastID }) {
       id
       canceledTimestamp
       createdTimestamp
@@ -340,11 +340,10 @@ export const batchUpdates = async () => {
 
 export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
   let done = false
-  let first = 1000
-  let skip = 0
+  let lastID = ''
   const whileGenerator = function* () {
     while (!done) {
-      yield skip
+      yield lastID
     }
   }
 
@@ -356,15 +355,15 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
         'https://api.thegraph.com/subgraphs/name/usemate/mate',
         ordersQuery,
         {
-          first,
-          skip,
+          lastID,
         }
       )
 
-      skip += first
       orders = [...orders, ...result.orders]
 
-      if (result.orders.length === 0) {
+      if (result.orders.length > 0) {
+        lastID = result.orders[result.orders.length - 1].id
+      } else if (result.orders.length === 0) {
         done = true
       }
     }
@@ -373,6 +372,7 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
     console.error(e)
   }
 
+  console.log('orderS:::', orders.length)
   return orders
 }
 
