@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm config set unsafe-perm true
 RUN npm install -g typescript
 USER node
+RUN npm cache clean
 RUN npm install
 COPY --chown=node:node . .
 RUN npm run build
