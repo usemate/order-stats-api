@@ -20,7 +20,8 @@ USER node
 # RUN npm install --save-dev sequelize-cli
 RUN npm install
 COPY --from=builder /home/node/app/dist ./dist
-
 COPY --chown=node:node .env .
+
+RUN chmod 777 .
  
 CMD [ "node", "dist/index.js" ]
