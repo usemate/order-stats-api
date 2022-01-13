@@ -4,6 +4,6 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - '2020:2020'
+      - '2022:2022'
     volumes:
-      - ./db.json:/home/node/app/db.json
+      - ./db:/home/node/app/db

@@ -22,6 +22,5 @@ RUN npm install
 COPY --from=builder /home/node/app/dist ./dist
 
 COPY --chown=node:node .env .
-
-
+ 
 CMD [ "node", "dist/index.js" ]

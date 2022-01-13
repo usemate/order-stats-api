@@ -1,14 +1,17 @@
 import { DataBase } from '../types'
 import { Low, JSONFile } from 'lowdb'
+import path from 'path'
 
-const adapter = new JSONFile<DataBase>('db.json')
+const file = path.join(process.cwd(), 'db/db.json')
+const adapter = new JSONFile<DataBase>(file)
 
 export const db = new Low(adapter)
 
 export const initDb = async () => {
   await db.read()
 
-  if (!db.data) {
+  const gotOrders = Boolean(db.data?.orders)
+  if (!gotOrders) {
     db.data = { orders: [] }
   }
 

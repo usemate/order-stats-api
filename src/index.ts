@@ -42,7 +42,7 @@ const start = async () => {
 
   console.log('Init express')
   const app = express()
-  const port = process.env.PORT || 2000
+  const port = process.env.PORT || 2022
 
   setupEvents()
   batchUpdates()
