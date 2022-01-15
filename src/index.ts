@@ -3,7 +3,7 @@ import { config } from 'dotenv'
 import { ethers } from 'ethers'
 import express, { Request, Response } from 'express'
 import { OrderStatus } from './config'
-import db, { initDb } from './services/db'
+import { initDb } from './services/db'
 import {
   batchUpdates,
   getAverageOrderSize,
@@ -22,6 +22,9 @@ import Moralis from 'moralis/node'
 import { amountIsCorrect } from './utils'
 import bodyParser from 'body-parser'
 import banish from './services/banish'
+import { Order } from './models/Order'
+
+const db: any = {}
 // https://mikemcl.github.io/decimal.js/#Dset
 Decimal.set({
   toExpNeg: -40,
@@ -50,7 +53,8 @@ const start = async () => {
   app.use(bodyParser.json())
 
   app.get('/orders', async (req: Request, res: Response) => {
-    res.status(200).send(db.data?.orders || [])
+    const orders = await Order.find({})
+    res.status(200).send(orders)
   })
 
   app.get('/batch', async (req: Request, res: Response) => {
@@ -96,7 +100,7 @@ const start = async () => {
 
   app.get('/stats', async (req: Request, res: Response) => {
     try {
-      const orders = db.data?.orders || []
+      const orders = await Order.find({})
       const averageOrderSize = await getAverageOrderSize()
       const openOrders = orders.filter(
         (order) => order.status === OrderStatus.OPEN

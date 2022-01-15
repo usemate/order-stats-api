@@ -1,9 +1,16 @@
 version: '3.9'
 services:
+  mongo:
+    image: mongo
+    restart: unless-stopped
+    volumes:
+      - mongodb:/data/db
   orders:
     build: .
     restart: unless-stopped
+    environment:
+      MONGO_URI: mongodb://mongo:27017/orders
     ports:
       - '2022:2022'
-    volumes:
-      - ./db:/home/node/app/db
+volumes:
+  mongodb:

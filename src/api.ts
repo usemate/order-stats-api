@@ -50,14 +50,6 @@ const ApiCache = {
   },
 }
 
-const tokenPriceQuery = gql`
-  query getTokenPrice($token: ID!, $block: Int) {
-    token(id: $token, block: { number: $block }) {
-      derivedUSD
-    }
-  }
-`
-
 const getPrice = async ({
   token,
   blockNumber,
@@ -78,22 +70,6 @@ const getPrice = async ({
   } catch (e) {
     console.error('getPrice Moralis.Web3API error', e)
   }
-
-  // const apiURL =
-  //   'https://bsc.streamingfast.io/subgraphs/name/pancakeswap/exchange-v2'
-  // // Get price for token with block number
-  // try {
-  //   const result = await ApiCache.graphqlRequest(apiURL, tokenPriceQuery, {
-  //     block: Number(blockNumber),
-  //     token: token.toLowerCase(),
-  //   })
-
-  //   if (result.token) {
-  //     return result.token.derivedUSD
-  //   }
-  // } catch (e) {
-  //   console.error('getPrice streamingfast error', e)
-  // }
 }
 
 export const getAmountForToken = async ({
@@ -132,26 +108,6 @@ export const getAmountForToken = async ({
         `Token is unstable and is blacklisted. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
       )
     }
-    // if (decimals != 18) {
-    //   const totalSupply = await erc20Token.totalSupply()
-
-    //   // Set the limit to this to ignore shitcoins
-    //   // 100 000 000 000 000 000
-    //   const maxSupply = new Decimal('100000000000000000')
-    //   const currentSupply = new Decimal(
-    //     ethers.utils.formatUnits(totalSupply, decimals)
-    //   )
-    //   if (currentSupply.gt(maxSupply)) {
-    //     if (!ignoredTokens.includes(token)) {
-    //       ignoredTokens.push(token)
-    //     }
-
-    //     return Promise.reject(
-    //       `Token is unstable is blacklisted. Our limit of ${maxSupply.toString()} was exceeded with ${currentSupply.toString()}. blockNumber: ${blockNumber}, token: ${token}, amount: ${amount}`
-    //     )
-    //   }
-    // }
-
     const value = new Decimal(price).mul(
       ethers.utils.formatUnits(amount, decimals)
     )

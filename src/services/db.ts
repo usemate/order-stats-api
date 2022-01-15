@@ -1,23 +1,5 @@
-import { DataBase } from '../types'
-import { Low, JSONFile } from 'lowdb'
-import path from 'path'
-
-const file = path.join(process.cwd(), 'db/db.json')
-const adapter = new JSONFile<DataBase>(file)
-
-export const db = new Low(adapter)
+import { connect } from 'mongoose'
 
 export const initDb = async () => {
-  await db.read()
-
-  const gotOrders = Boolean(db.data?.orders)
-  if (!gotOrders) {
-    db.data = { orders: [] }
-  }
-
-  await db.write()
-
-  return db
+  await connect(process.env.MONGO_URI || 'mongodb://localhost:27017/orders')
 }
-
-export default db

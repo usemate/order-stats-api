@@ -1,8 +1,7 @@
 import Queue from 'queue-promise'
 import moment from 'moment'
 import { gql, request } from 'graphql-request'
-import { Order, GraphOrderEntity, BlockData } from '../types'
-import db from './db'
+import { GraphOrderEntity, BlockData } from '../types'
 import { getAmountForToken } from '../api'
 import { MATE_CORE_ADDRESS, OrderStatus } from '../config'
 import { getStandardProvider } from '../providers'
@@ -11,6 +10,7 @@ import mateCoreAbi from '../abi/MateCore.json'
 import { amountIsCorrect, getSavedFromOrder } from '../utils'
 import Decimal from 'decimal.js'
 import banish from './banish'
+import { IOrder, Order } from '../models/Order'
 
 export const setupEvents = () => {
   const mateCore = new ethers.Contract(
@@ -49,8 +49,6 @@ export const setupEvents = () => {
       }
 
       await getOrderWithData(newOrder)
-
-      await db.write()
     }
   )
 
@@ -67,10 +65,7 @@ export const setupEvents = () => {
     'OrderExecuted',
     async (orderId, creator, sender, amountOut, timestamp, event) => {
       console.log(`Order executed - ${orderId}`)
-
-      const order = db.data.orders.find(
-        (currentOrder) => currentOrder.id === order.id
-      )
+      const order = await Order.findOne({ id: orderId })
 
       if (order) {
         const executedBlockNumber = event.blockNumber
@@ -102,7 +97,7 @@ export const setupEvents = () => {
 
 export const orderQueue = new Queue({
   concurrent: 1,
-  interval: 2500,
+  interval: 10000,
 })
 
 const ordersQuery = gql`
@@ -210,12 +205,9 @@ export const getAmountBlock = async (
 }
 
 const getOrderWithData = async (order: GraphOrderEntity) => {
-  let selectedOrder
+  let selectedOrder: IOrder
   try {
-    let currentOrders = db.data.orders || []
-    selectedOrder = currentOrders.find(
-      (currentOrder) => currentOrder.id === order.id
-    )
+    selectedOrder = await Order.findOne({ id: order.id })
 
     const [createdBlock, executedBlock] = await Promise.all([
       getAmountBlock(
@@ -237,7 +229,7 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
       executedBlock,
     }
 
-    let updatedOrder: Order = selectedOrder
+    let updatedOrder: any = selectedOrder
       ? {
           ...selectedOrder,
           ...order,
@@ -264,40 +256,28 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
     }
 
     if (selectedOrder) {
-      await updateOrder(order.id, updatedOrder)
+      await selectedOrder.updateOne(updatedOrder)
     } else {
-      db.data.orders.push(updatedOrder)
-      await db.write()
+      await Order.create(updatedOrder)
     }
   } catch (e) {
     console.error(`getOrderWithData failed with order ${order.id}`, e)
-
-    if (!selectedOrder) {
-      db.data.orders.push(order)
-      await db.write()
-    }
   }
 }
 
 export const updateOrder = async (orderId: string, data: Partial<Order>) => {
-  const currentOrders = db.data.orders || []
-
-  const selectedOrderIndex = currentOrders.findIndex(
-    (currentOrder) => currentOrder.id.toLowerCase() === orderId.toLowerCase()
-  )
-
-  if (selectedOrderIndex >= 0) {
-    db.data.orders[selectedOrderIndex] = {
-      ...db.data.orders[selectedOrderIndex],
-      ...data,
-    }
+  const order = await Order.findOne({ id: orderId })
+  if (order) {
+    await order.update(data)
+    console.log('Order updated')
+  } else {
+    console.error('Could not update order ', orderId)
   }
-  await db.write()
 }
 
 const orderAlreadyPopulated = (
   order: GraphOrderEntity,
-  currentOrders: Order[]
+  currentOrders: IOrder[]
 ): boolean => {
   const selectedOrder = currentOrders.find(
     (currentOrder) => currentOrder.id.toLowerCase() === order.id.toLowerCase()
@@ -329,7 +309,7 @@ export const batchUpdates = async () => {
   console.log('batch started, clearing queue')
   orderQueue.clear()
   const allOrders = await getAllOrders()
-  const orders = (await db.data.orders) || []
+  const orders = await Order.find({})
 
   allOrders.map((order) => {
     if (!orderAlreadyPopulated(order, orders)) {
@@ -372,12 +352,11 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
     console.error(e)
   }
 
-  console.log('orderS:::', orders.length)
   return orders
 }
 
-export const getExecutedOrders = async (): Promise<Order[]> => {
-  const orders = (await db.data?.orders) || []
+export const getExecutedOrders = async (): Promise<IOrder[]> => {
+  const orders = await Order.find({ status: OrderStatus.CLOSED })
 
   return orders
     .filter(orderIsValid)
@@ -389,7 +368,7 @@ export const getExecutedOrders = async (): Promise<Order[]> => {
     .filter((order) => amountIsCorrect(order.executedBlock?.amounts.recieved))
 }
 
-export const getLargestOrder = async (): Promise<Order[]> => {
+export const getLargestOrder = async (): Promise<any[]> => {
   const orders = await getExecutedOrders()
 
   return orders
@@ -450,7 +429,7 @@ export const getBiggestSaveUsd = async (): Promise<Order[]> => {
 }
 
 export const getBiggestOpenOrder = async (): Promise<Order[]> => {
-  const orders = (await db.data?.orders) || []
+  const orders = await Order.find({ status: OrderStatus.OPEN })
 
   return orders
     .filter(orderIsValid)
@@ -472,7 +451,7 @@ export const getBiggestOpenOrder = async (): Promise<Order[]> => {
 }
 
 export const getLatestUpdatedOrders = async (): Promise<Order[]> => {
-  const orders = (await db.data?.orders) || []
+  const orders = await Order.find({})
 
   return orders
     .map((order) => {
@@ -494,7 +473,7 @@ export const getLatestUpdatedOrders = async (): Promise<Order[]> => {
     }))
 }
 
-export const orderIsValid = (order: Order): boolean => {
+export const orderIsValid = (order: IOrder): boolean => {
   return !banish.shouldIgnore({
     tokenIn: order.tokenIn,
     tokenOut: order.tokenOut,
