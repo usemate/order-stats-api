@@ -11,6 +11,7 @@ import { amountIsCorrect, getSavedFromOrder } from '../utils'
 import Decimal from 'decimal.js'
 import banish from './banish'
 import { IOrder, Order } from '../models/Order'
+import { LeanDocument } from 'mongoose'
 
 export const setupEvents = () => {
   const mateCore = new ethers.Contract(
@@ -143,6 +144,7 @@ export const getAmountBlock = async (
     return null
   }
 
+  let orders = await Order.find({})
   let amountIn = getValue(currentBlock?.amounts.amountIn)
   let amountOutMin = getValue(currentBlock?.amounts.amountOutMin)
   let recieved = getValue(currentBlock?.amounts.recieved)
@@ -154,6 +156,7 @@ export const getAmountBlock = async (
       tokenIn,
       tokenOut,
       orderId: order.id,
+      orders,
     })
   ) {
     console.log('getAmountBlock - ignore order: ', order.id)
@@ -231,7 +234,6 @@ const getOrderWithData = async (order: GraphOrderEntity) => {
 
     let updatedOrder: any = selectedOrder
       ? {
-          ...selectedOrder,
           ...order,
           ...updated,
         }
@@ -355,23 +357,29 @@ export const getAllOrders = async (): Promise<GraphOrderEntity[]> => {
   return orders
 }
 
-export const getExecutedOrders = async (): Promise<IOrder[]> => {
+export const getExecutedOrders = async (): Promise<
+  LeanDocument<IOrder & { _id: any }>[]
+> => {
   const orders = await Order.find({ status: OrderStatus.CLOSED })
 
-  return orders
-    .filter(orderIsValid)
-    .filter((order) => order.status === OrderStatus.CLOSED)
-    .filter((order) =>
-      amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
-    )
-    .filter((order) => amountIsCorrect(order.createdBlock?.amounts.amountIn))
-    .filter((order) => amountIsCorrect(order.executedBlock?.amounts.recieved))
+  return Promise.all(
+    orders
+      .filter((order) => orderIsValid(order, orders))
+      .filter((order) => order.status === OrderStatus.CLOSED)
+      .filter((order) =>
+        amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
+      )
+      .filter((order) => amountIsCorrect(order.createdBlock?.amounts.amountIn))
+      .filter((order) => amountIsCorrect(order.executedBlock?.amounts.recieved))
+      .map((item) => item.toObject())
+  )
 }
 
 export const getLargestOrder = async (): Promise<any[]> => {
   const orders = await getExecutedOrders()
 
   return orders
+
     .map((order) => ({
       ...order,
       recievedAmount: new Decimal(order.executedBlock.amounts.recieved),
@@ -431,23 +439,26 @@ export const getBiggestSaveUsd = async (): Promise<Order[]> => {
 export const getBiggestOpenOrder = async (): Promise<Order[]> => {
   const orders = await Order.find({ status: OrderStatus.OPEN })
 
-  return orders
-    .filter(orderIsValid)
-    .filter((order) => order.status === OrderStatus.OPEN)
-    .filter((order) =>
-      amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
-    )
-    .filter((order) => amountIsCorrect(order.createdBlock?.amounts.amountIn))
-    .map((order) => ({
-      ...order,
-      amountInUsd: new Decimal(order.createdBlock.amounts.amountIn),
-    }))
-    .sort((a, b) => b.amountInUsd.comparedTo(a.amountInUsd))
-    .slice(0, 15)
-    .map((order) => ({
-      ...order,
-      amountInUsd: order.amountInUsd.toString(),
-    }))
+  return Promise.all(
+    orders
+      .filter((order) => orderIsValid(order, orders))
+      .filter((order) => order.status === OrderStatus.OPEN)
+      .filter((order) =>
+        amountIsCorrect(order.createdBlock?.amounts.amountOutMin)
+      )
+      .filter((order) => amountIsCorrect(order.createdBlock?.amounts.amountIn))
+      .map((item) => item.toObject())
+      .map((order) => ({
+        ...order,
+        amountInUsd: new Decimal(order.createdBlock.amounts.amountIn),
+      }))
+      .sort((a, b) => b.amountInUsd.comparedTo(a.amountInUsd))
+      .slice(0, 15)
+      .map((order) => ({
+        ...order,
+        amountInUsd: order.amountInUsd.toString(),
+      }))
+  )
 }
 
 export const getLatestUpdatedOrders = async (): Promise<Order[]> => {
@@ -473,10 +484,11 @@ export const getLatestUpdatedOrders = async (): Promise<Order[]> => {
     }))
 }
 
-export const orderIsValid = (order: IOrder): boolean => {
+export const orderIsValid = (order: IOrder, orders: IOrder[]): boolean => {
   return !banish.shouldIgnore({
     tokenIn: order.tokenIn,
     tokenOut: order.tokenOut,
     orderId: order.id,
+    orders,
   })
 }

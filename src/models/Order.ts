@@ -28,6 +28,7 @@ export interface IOrder extends Document {
   amountReceivedUsdValue?: string
   savedPercentage?: string
   savedUsd?: string
+  isIgnored: boolean
 }
 
 const OrderSchema: Schema = new Schema({
@@ -61,6 +62,8 @@ const OrderSchema: Schema = new Schema({
     type: SchemaTypes.Mixed,
     required: false,
   },
+
+  isIgnored: { type: Boolean, required: false },
 })
 
 export const Order: Model<IOrder> = model('Order', OrderSchema)

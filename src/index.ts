@@ -120,7 +120,7 @@ const start = async () => {
         .reduce((prev, curr) => prev.add(new Decimal(curr)), new Decimal(0))
 
       const totalOrdersValid = orders
-        .filter(orderIsValid)
+        .filter((order) => orderIsValid(order, orders))
         .filter((order) =>
           amountIsCorrect(order.createdBlock?.amounts?.amountIn)
         )
@@ -131,7 +131,7 @@ const start = async () => {
         .toDecimalPlaces(6)
 
       const openOrdersValid = openOrders
-        .filter(orderIsValid)
+        .filter((order) => orderIsValid(order, orders))
         .filter((order) =>
           amountIsCorrect(order.createdBlock?.amounts?.amountIn)
         )
@@ -310,10 +310,12 @@ const start = async () => {
     })
   })
 
-  app.get('/banish', (req: Request, res: Response) => {
+  app.get('/banish', async (req: Request, res: Response) => {
+    const orders = await Order.find({ isIgnored: true }).lean().exec()
+
     res.status(200).json({
       ignoredTokens: banish.tokens,
-      ignoredOrders: banish.orders,
+      ignoredOrders: orders,
     })
   })
   app.post('/whitelist-token', async (req: Request, res: Response) => {

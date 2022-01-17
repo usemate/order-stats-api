@@ -1,8 +1,9 @@
+import { IOrder, Order } from '../models/Order'
+
 const findIt = (val) => (item) =>
   item && item.toLowerCase() === val && val.toLowerCase()
 
 class Banish {
-  orders: string[] = []
   tokens: string[] = [
     '0x87230146E138d3F296a9a77e497A2A83012e9Bc5',
     '0x7a565284572d03ec50c35396f7d6001252eb43b6',
@@ -19,14 +20,22 @@ class Banish {
     this.tokens = this.tokens.filter((t) => t !== token)
   }
 
-  addOrder = (orderId: string) => {
-    if (!this.orders.includes(orderId)) {
-      this.orders.push(orderId)
+  addOrder = async (orderId: string) => {
+    const selectedOrder = Order.findOne({ id: orderId })
+    if (selectedOrder) {
+      await selectedOrder.update({
+        isIgnored: true,
+      })
     }
   }
 
-  removeOrder = (orderId: string) => {
-    this.orders = this.orders.filter((order) => order !== orderId)
+  removeOrder = async (orderId: string) => {
+    const selectedOrder = Order.findOne({ id: orderId })
+    if (selectedOrder) {
+      await selectedOrder.update({
+        isIgnored: false,
+      })
+    }
   }
 
   isTokenIgnored = (token: string): boolean => {
@@ -37,10 +46,12 @@ class Banish {
     tokenIn,
     tokenOut,
     orderId,
+    orders,
   }: {
     tokenIn: string
     tokenOut: string
     orderId: string
+    orders: IOrder[]
   }): boolean => {
     if (this.isTokenIgnored(tokenIn)) {
       console.log('bad token in, return ', tokenIn)
@@ -52,12 +63,13 @@ class Banish {
       return true
     }
 
-    if (this.orders.some(findIt(orderId))) {
-      console.log('bad orderid, return ', orderId)
-      return true
+    const match = orders.find((order) => order.id === orderId)
+
+    if (!match) {
+      return false
     }
 
-    return false
+    return Boolean(match.isIgnored)
   }
 }
 
